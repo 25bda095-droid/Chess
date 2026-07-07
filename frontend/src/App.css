@@ -1,0 +1,87 @@
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  max-width: 1600px;
+  height: 100vh;
+  padding: 2rem;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 4px 20px rgba(56, 189, 248, 0.2);
+  letter-spacing: -0.05em;
+}
+
+.user-profile {
+  background: var(--board-bg);
+  padding: 0.5rem 1.2rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.user-icon {
+  font-size: 1.2rem;
+}
+
+.main-content {
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  gap: 3rem;
+  align-items: start;
+  flex-grow: 1;
+}
+
+.chessboard-container {
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease;
+}
+
+.chessboard-container:hover {
+  transform: translateY(-4px);
+}
+
+/* Responsive design */
+@media (max-width: 1100px) {
+  .main-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 2rem;
+  }
+  
+  .left-sidebar, .right-sidebar {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  
+  .chessboard-container {
+    grid-row: 1;
+  }
+}
