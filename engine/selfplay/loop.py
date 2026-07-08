@@ -102,31 +102,74 @@ class SelfPlayLoop:
             
         return dataset
 
-class DummyAgent:
-    """A dummy agent for testing the self-play loop without a full MCTS/NNUE implementation."""
-    def search_and_get_policy(self, board: Board) -> dict:
-        legal_moves = board.generate_legal_moves()
-        if not legal_moves:
-            return {}
-        prob = 1.0 / len(legal_moves)
-        return {move.uci(): prob for move in legal_moves}
+import torch
+from engine.nnue.network import NNUE
+from engine.nnue.features import HalfKPFeatures
+from engine.search.mcts import AlphaZeroMCTS
 
-    def sample_move(self, policy: dict, board: Board) -> chess.Move:
+class NNUEMCTSAgent:
+    """Agent that uses our trained NNUE model and MCTS to play."""
+    def __init__(self, model_path="nnue_base_model_final.pth", simulations=50):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = NNUE(input_size=HalfKPFeatures.NUM_FEATURES, embedding_size=32, hidden_size=16)
+        
+        if os.path.exists(model_path):
+            print(f"Loading trained brain: {model_path}")
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        else:
+            print(f"Warning: {model_path} not found. Using untrained brain.")
+            
+        self.model.to(self.device)
+        self.model.eval()
+        self.mcts = AlphaZeroMCTS(self.evaluate_board, num_simulations=simulations)
+
+    def evaluate_board(self, board):
+        legal_moves = list(board.legal_moves)
+        if not legal_moves:
+            return {}, 0.0
+            
+        # 1. Dummy Policy (equal chance for all moves) since we only trained a Value Network
+        policy = {move: 1.0/len(legal_moves) for move in legal_moves}
+        
+        # 2. Real NNUE Value Evaluation
+        sparse = HalfKPFeatures.board_to_tensor(board).to_dense()
+        feat_stm = sparse[0].unsqueeze(0).to(self.device)
+        feat_nstm = sparse[1].unsqueeze(0).to(self.device)
+        
+        if board.turn != chess.WHITE:
+            feat_stm, feat_nstm = feat_nstm, feat_stm
+            
+        with torch.no_grad():
+            val = self.model(feat_stm, feat_nstm).item()
+            
+        val = max(-1.0, min(1.0, val)) # Clamp to [-1, 1] for MCTS
+        return policy, val
+
+    def search_and_get_policy(self, board):
+        # High temperature for the first 30 ply (15 moves) to force opening exploration!
+        # After 30 ply, temperature drops to 0 so it plays perfectly deterministically.
+        ply_count = len(board._board.move_stack)
+        temp = 1.0 if ply_count < 30 else 0.0
+        
+        # MCTS now returns a dictionary of probabilities instead of a single move
+        policy = self.mcts.search(board._board, temperature=temp)
+        return {move.uci(): prob for move, prob in policy.items()}
+
+    def sample_move(self, policy, board):
+        import random
         moves = list(policy.keys())
         probs = list(policy.values())
         chosen_uci = random.choices(moves, weights=probs, k=1)[0]
         return chess.Move.from_uci(chosen_uci)
 
 if __name__ == "__main__":
-    # Test the self-play loop with a dummy agent
+    # Test the self-play loop with our REAL trained agent
     loop = SelfPlayLoop()
-    dummy_agent = DummyAgent()
-    print("Starting a test self-play session...")
-    data = loop.generate_data(dummy_agent, num_games=5)
+    agent = NNUEMCTSAgent(model_path="nnue_base_model_final.pth", simulations=50)
+    print("Starting a real self-play session with NNUE + MCTS...")
+    data = loop.generate_data(agent, num_games=500)
     
-    print(f"Generated {len(data)} tuples from the test game.")
-    print("Sample tuple (state, policy, value):")
-    state, policy, value = data[0]
-    print(f"State (FEN): {state}")
-    print(f"Policy (Move Probabilities): {policy}")
-    print(f"Value: {value}")
+    print(f"\nGenerated a massive dataset of {len(data)} RL positions!")
+    print("Saving self-play data to disk for Phase 2 Reinforcement Learning...")
+    torch.save(data, "rl_selfplay_data.pt")
+    print("Successfully saved to 'rl_selfplay_data.pt'!")

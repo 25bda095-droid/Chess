@@ -56,15 +56,15 @@ class AlphaZeroMCTS:
         self.c_puct = c_puct
         self.num_simulations = num_simulations
 
-    def search(self, initial_state):
+    def search(self, initial_state, temperature=0.0):
         """
-        Runs MCTS starting from the given state and returns the best move.
+        Runs MCTS starting from the given state and returns the visit probabilities.
         
         Args:
             initial_state: The root `chess.Board` state.
             
         Returns:
-            The best `chess.Move` based on highest visit count.
+            A dictionary of {chess.Move: probability} based on visit counts.
         """
         root = Node(initial_state)
         
@@ -119,6 +119,17 @@ class AlphaZeroMCTS:
                 
             root.visits += 1
 
-        # Best move is the one most visited, per AlphaZero paper
-        best_move = max(root.children.items(), key=lambda item: item[1].visits)[0]
-        return best_move
+        visits = {action: child.visits for action, child in root.children.items()}
+        
+        if temperature == 0.0:
+            # Strictly play the best move (deterministic)
+            best_action = max(visits.items(), key=lambda item: item[1])[0]
+            policy = {action: 1.0 if action == best_action else 0.0 for action in visits.keys()}
+            return policy
+            
+        # Temperature scaling (adds imagination/randomness)
+        adjusted_visits = {a: (v + 1e-8) ** (1.0 / temperature) for a, v in visits.items()}
+        total = sum(adjusted_visits.values())
+        policy = {a: v / total for a, v in adjusted_visits.items()}
+        
+        return policy
