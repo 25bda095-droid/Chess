@@ -1,86 +1,92 @@
-#!/usr/bin/env python3
-import subprocess
-import re
-import argparse
 import sys
+import os
 import math
+from tqdm import tqdm
+import chess
 
-def calculate_elo_diff(wins, draws, losses):
-    total = wins + draws + losses
-    if total == 0:
-        return 0.0, 0.0
+# 1. Setup sys.path to allow imports from engine
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-    score = (wins + draws * 0.5) / total
-    if score == 0:
-        score = 0.001
-    elif score == 1:
-        score = 0.999
-    
-    elo_diff = -400 * math.log10(1 / score - 1)
-    
-    # Simple error margin estimation approximation
-    dev = math.sqrt((score * (1 - score)) / total)
-    error_margin = 400 * math.log10(1 / (max(0.001, score - dev)) - 1) - elo_diff if score - dev > 0 else 0
-    return elo_diff, abs(error_margin)
+# 2. Import required classes
+from engine.selfplay.loop import NNUEMCTSAgent
+from engine.core.board import Board
 
 def main():
-    parser = argparse.ArgumentParser(description="Run matches using cutechess-cli and calculate Elo.")
-    parser.add_argument("--engine1", required=True, help="Path to test engine or cutechess engine config")
-    parser.add_argument("--engine2", required=True, help="Path to baseline engine or cutechess engine config")
-    parser.add_argument("--rounds", type=int, default=10, help="Number of rounds to play")
-    parser.add_argument("--tc", default="10+0.1", help="Time control (e.g. 10+0.1)")
-    parser.add_argument("--concurrency", type=int, default=1, help="Number of concurrent games")
-    parser.add_argument("--cutechess", default="cutechess-cli", help="Path to cutechess-cli executable")
-    
-    args = parser.parse_args()
-    
-    cmd = [
-        args.cutechess,
-        "-engine", f"cmd={args.engine1}", "name=TestEngine",
-        "-engine", f"cmd={args.engine2}", "name=BaselineEngine",
-        "-each", "proto=uci", f"tc={args.tc}",
-        "-rounds", str(args.rounds),
-        "-concurrency", str(args.concurrency),
-        "-recover"
-    ]
-    
-    print(f"Running command: {' '.join(cmd)}")
-    
-    try:
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    except FileNotFoundError:
-        print(f"Error: {args.cutechess} not found. Please install cutechess-cli or provide the correct path.", file=sys.stderr)
-        sys.exit(1)
+    base_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'nnue_base_model_final.pth'))
+    rl_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'nnue_rl_model_final.pth'))
 
-    wins, draws, losses = 0, 0, 0
+    print("Loading Base Agent...")
+    # 3. Instantiate agents
+    base_agent = NNUEMCTSAgent(model_path=base_model_path, simulations=25)
     
-    # Sample Output to parse:
-    # Score of TestEngine vs BaselineEngine: 5 - 3 - 2  [0.600] 10
-    score_pattern = re.compile(r"Score of TestEngine vs BaselineEngine:\s+(\d+)\s+-\s+(\d+)\s+-\s+(\d+)")
+    print("Loading RL Agent...")
+    rl_agent = NNUEMCTSAgent(model_path=rl_model_path, simulations=25)
 
-    for line in iter(process.stdout.readline, ""):
-        print(line, end="")
-        match = score_pattern.search(line)
-        if match:
-            wins = int(match.group(1))
-            losses = int(match.group(2))
-            draws = int(match.group(3))
+    num_games = 20
+    rl_points = 0.0
 
-    process.wait()
+    print(f"\nStarting Arena Match: {num_games} Games")
     
-    if process.returncode != 0:
-        print(f"Warning: cutechess-cli exited with code {process.returncode}", file=sys.stderr)
+    # 8. Print a beautiful summary of the match to the terminal using tqdm for the games
+    # 4. Arena match of 20 games
+    for game_idx in tqdm(range(num_games), desc="Arena Match"):
+        board = Board()
         
-    elo_diff, error = calculate_elo_diff(wins, draws, losses)
+        # In 10 games rl_agent is White, and in 10 games it's Black
+        rl_is_white = (game_idx < 10)
+        
+        # 5. Game loop
+        while not board.is_game_over():
+            is_white_turn = (board._board.turn == chess.WHITE)
+            
+            if (is_white_turn and rl_is_white) or (not is_white_turn and not rl_is_white):
+                current_agent = rl_agent
+            else:
+                current_agent = base_agent
+                
+            # Ask the appropriate agent for a move
+            policy = current_agent.search_and_get_policy(board)
+            move = current_agent.sample_move(policy, board)
+            
+            # Push it to the board
+            board.push(move)
+            
+        result = board.get_result()
+        
+        # 6. Track RL agent's score: Win = 1, Draw = 0.5
+        if result == "1-0":
+            if rl_is_white:
+                rl_points += 1.0
+        elif result == "0-1":
+            if not rl_is_white:
+                rl_points += 1.0
+        elif result == "1/2-1/2":
+            rl_points += 0.5
+            
+    # 7. Calculate Elo difference
+    expected_score = rl_points / num_games
     
+    if expected_score == 1.0:
+        elo_diff = float('inf')
+    elif expected_score == 0.0:
+        elo_diff = float('-inf')
+    else:
+        elo_diff = -400 * math.log10(1 / expected_score - 1)
+        
     print("\n" + "="*40)
-    print("Match Results")
+    print("🏆 Match Summary 🏆")
     print("="*40)
-    print(f"Wins:   {wins}")
-    print(f"Draws:  {draws}")
-    print(f"Losses: {losses}")
-    print(f"Total:  {wins + draws + losses}")
-    print(f"Elo diff: {elo_diff:.2f} +/- {error:.2f}")
+    print(f"Total Games: {num_games}")
+    print(f"RL Agent Points: {rl_points} / {num_games}")
+    print(f"Win Rate: {expected_score * 100:.1f}%")
+    
+    if expected_score == 1.0:
+        print("Elo Gained by RL Model: +∞ (100% win rate)")
+    elif expected_score == 0.0:
+        print("Elo Gained by RL Model: -∞ (0% win rate)")
+    else:
+        print(f"Elo Gained by RL Model: {elo_diff:+.2f} Elo")
+    print("="*40)
 
 if __name__ == "__main__":
     main()

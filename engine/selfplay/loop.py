@@ -149,6 +149,8 @@ class NNUEMCTSAgent:
         # High temperature for the first 30 ply (15 moves) to force opening exploration!
         # After 30 ply, temperature drops to 0 so it plays perfectly deterministically.
         ply_count = len(board._board.move_stack)
+        if ply_count == 0:
+            ply_count = (board._board.fullmove_number - 1) * 2 + (1 if board._board.turn == chess.BLACK else 0)
         temp = 1.0 if ply_count < 30 else 0.0
         
         # MCTS now returns a dictionary of probabilities instead of a single move
