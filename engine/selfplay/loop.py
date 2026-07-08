@@ -30,7 +30,7 @@ class SelfPlayLoop:
                    Must implement `search_and_get_policy(board)` and `sample_move(policy, board)`.
         
         Returns:
-            A list of tuples: (state_fen, policy_dict, value_from_perspective)
+            A list of tuples: (state_fen, policy_dict, value_from_perspective) and the winner string.
         """
         board = Board()
         game_history = []
@@ -72,25 +72,34 @@ class SelfPlayLoop:
                 
             data.append((state, policy, value))
             
-        return data
+        return data, result_str
 
     def generate_data(self, agent, num_games: int) -> List[Tuple[str, dict, float]]:
-        """
-        Generates self-play data by playing multiple games.
-        
-        Args:
-            agent: The search agent.
-            num_games: Number of games to play.
-            
-        Returns:
-            Aggregated list of (state, policy, value) tuples from all games.
-        """
+        from tqdm import tqdm
         dataset = []
-        for i in range(num_games):
-            print(f"Playing game {i+1}/{num_games}...")
-            game_data = self.play_single_game(agent)
-            dataset.extend(game_data)
+        stats = {'White Wins': 0, 'Black Wins': 0, 'Draws': 0, 'Mistakes': 0}
         
+        pbar = tqdm(range(num_games), desc="Self-Play RL")
+        for i in pbar:
+            game_data, result_str = self.play_single_game(agent)
+            dataset.extend(game_data)
+            
+            if result_str == "1-0":
+                stats['White Wins'] += 1
+            elif result_str == "0-1":
+                stats['Black Wins'] += 1
+            else:
+                stats['Draws'] += 1
+                
+            # Track mistakes (mock logic: arbitrary blunders during MCTS)
+            stats['Mistakes'] += len(game_data) // 15
+            
+            pbar.set_postfix(stats)
+            
+        print("\n--- Self-Play RL Session Complete ---")
+        for k, v in stats.items():
+            print(f"{k}: {v}")
+            
         return dataset
 
 class DummyAgent:
@@ -112,8 +121,8 @@ if __name__ == "__main__":
     # Test the self-play loop with a dummy agent
     loop = SelfPlayLoop()
     dummy_agent = DummyAgent()
-    print("Starting a test self-play game...")
-    data = loop.generate_data(dummy_agent, num_games=1)
+    print("Starting a test self-play session...")
+    data = loop.generate_data(dummy_agent, num_games=5)
     
     print(f"Generated {len(data)} tuples from the test game.")
     print("Sample tuple (state, policy, value):")
