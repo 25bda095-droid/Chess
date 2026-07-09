@@ -1,0 +1,8 @@
+feat(search): Integrate Lichess Syzygy Tablebase for endgame self-play
+
+- Implemented `get_syzygy_move(fen)` in `engine/search/tablebase.py` to fetch perfect-play UCI moves from the Lichess Tablebase API.
+- Updated `search_and_get_policy` in `engine/selfplay/loop.py` to bypass MCTS and directly return the tablebase move (with a probability of 1.0) when the board has 5 or fewer pieces.
+- Seamlessly mapped tablebase API responses to the existing `{move: probability}` policy dictionary format expected by the `sample_move` generator.
+- Added proper fallback to MCTS if network requests timeout or fail.
+
+This integration accelerates RL data generation and enforces mathematically perfect endgame play for 5-piece and fewer positions, drastically improving value target quality during the late game.

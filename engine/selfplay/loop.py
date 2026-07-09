@@ -106,12 +106,14 @@ import torch
 from engine.nnue.network import NNUE
 from engine.nnue.features import HalfKPFeatures
 from engine.search.mcts import AlphaZeroMCTS
+from engine.search.tablebase import get_syzygy_move
 
 class NNUEMCTSAgent:
     """Agent that uses our trained NNUE model and MCTS to play."""
-    def __init__(self, model_path="nnue_base_model_final.pth", simulations=50):
+    def __init__(self, model_path="nnue_base_model_final.pth", simulations=50, use_tablebase=True):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = NNUE(input_size=HalfKPFeatures.NUM_FEATURES, embedding_size=32, hidden_size=16)
+        self.use_tablebase = use_tablebase
         
         if os.path.exists(model_path):
             print(f"Loading trained brain: {model_path}")
@@ -146,6 +148,11 @@ class NNUEMCTSAgent:
         return policy, val
 
     def search_and_get_policy(self, board):
+        if self.use_tablebase and len(board._board.piece_map()) <= 5:
+            syzygy_move = get_syzygy_move(board.get_fen())
+            if syzygy_move is not None:
+                return {syzygy_move: 1.0}
+
         # High temperature for the first 30 ply (15 moves) to force opening exploration!
         # After 30 ply, temperature drops to 0 so it plays perfectly deterministically.
         ply_count = len(board._board.move_stack)
@@ -167,7 +174,7 @@ class NNUEMCTSAgent:
 if __name__ == "__main__":
     # Test the self-play loop with our REAL trained agent
     loop = SelfPlayLoop()
-    agent = NNUEMCTSAgent(model_path="nnue_base_model_final.pth", simulations=50)
+    agent = NNUEMCTSAgent(model_path="nnue_base_model_final.pth", simulations=50, use_tablebase=True)
     print("Starting a real self-play session with NNUE + MCTS...")
     data = loop.generate_data(agent, num_games=500)
     

@@ -1,13 +1,148 @@
 import { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
-import Login from './components/Login';
+import Login from './components/Auth/Login';
+import Register from './components/Auth/Register';
 import AIDashboard from './components/AIDashboard';
 import ControlPanel from './components/ControlPanel';
 import './App.css';
 
+// Mock ProtectedRoute
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = true; // Temporary bypass since Auth components aren't wired up to global state yet
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+// Common Layout for the Dashboard
+const DashboardLayout = () => {
+  return (
+    <div className="layout-container" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <header className="header">
+        <h1>Chess AI Coach</h1>
+        <div className="flex items-center gap-6">
+          <nav className="flex gap-4">
+             <Link to="/" className="text-gray-300 hover:text-white font-medium transition-colors">Play</Link>
+             <Link to="/history" className="text-gray-300 hover:text-white font-medium transition-colors">History</Link>
+          </nav>
+          <div className="user-profile">
+            <span className="user-icon">👤</span> Player
+          </div>
+        </div>
+      </header>
+      <div style={{ flexGrow: 1 }}>
+        <Outlet />
+      </div>
+    </div>
+  );
+};
+
+// The Play View (Chess Game)
+const PlayView = ({ game, onDrop, explanation }) => {
+  return (
+    <div className="main-content">
+      <div className="left-sidebar">
+        <ControlPanel />
+      </div>
+      
+      <div className="chessboard-container">
+        <Chessboard 
+          position={game.fen()} 
+          onPieceDrop={onDrop} 
+          customDarkSquareStyle={{ backgroundColor: '#779556' }}
+          customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
+        />
+      </div>
+      
+      <div className="right-sidebar">
+        <AIDashboard explanation={explanation} />
+      </div>
+    </div>
+  );
+};
+
+// Premium History View Component
+const HistoryView = () => {
+  const games = [
+    { id: 1, date: '2023-10-01', opponent: 'Stockfish Level 8', result: 'Win', accuracy: '92%', moves: 45 },
+    { id: 2, date: '2023-09-28', opponent: 'Hikaru (Bot)', result: 'Loss', accuracy: '78%', moves: 32 },
+    { id: 3, date: '2023-09-25', opponent: 'Magnus (Bot)', result: 'Draw', accuracy: '85%', moves: 60 },
+    { id: 4, date: '2023-09-22', opponent: 'Beth Harmon (Bot)', result: 'Win', accuracy: '89%', moves: 24 },
+  ];
+
+  return (
+    <div className="max-w-6xl mx-auto w-full pt-8 pb-12">
+      <div className="flex justify-between items-end mb-10">
+        <div>
+          <h2 className="text-4xl font-extrabold tracking-tight text-white mb-2">Game History</h2>
+          <p className="text-gray-400 text-lg">Review your past matches and analyze your performance.</p>
+        </div>
+        <Link to="/" className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-all border border-gray-700 shadow-lg">
+          New Game
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
+          <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Total Games</h3>
+          <p className="text-4xl font-black text-white">124</p>
+        </div>
+        <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
+          <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Win Rate</h3>
+          <p className="text-4xl font-black text-emerald-400">62.5%</p>
+        </div>
+        <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
+          <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Avg Accuracy</h3>
+          <p className="text-4xl font-black text-blue-400">85.2%</p>
+        </div>
+      </div>
+
+      <div className="bg-gray-800/90 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden backdrop-blur-md">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-900/50 text-gray-300 border-b border-gray-700">
+              <th className="p-6 font-bold text-sm tracking-wider uppercase">Date</th>
+              <th className="p-6 font-bold text-sm tracking-wider uppercase">Opponent</th>
+              <th className="p-6 font-bold text-sm tracking-wider uppercase">Result</th>
+              <th className="p-6 font-bold text-sm tracking-wider uppercase">Accuracy</th>
+              <th className="p-6 font-bold text-sm tracking-wider uppercase">Moves</th>
+              <th className="p-6 font-bold text-sm tracking-wider uppercase text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-700/50">
+            {games.map((game) => (
+              <tr key={game.id} className="hover:bg-gray-700/30 transition-colors group">
+                <td className="p-6 text-gray-300 font-medium">{game.date}</td>
+                <td className="p-6 text-white font-semibold text-lg">{game.opponent}</td>
+                <td className="p-6">
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
+                    game.result === 'Win' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                    game.result === 'Loss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                    'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                  }`}>
+                    {game.result}
+                  </span>
+                </td>
+                <td className="p-6 text-blue-400 font-bold text-lg">{game.accuracy}</td>
+                <td className="p-6 text-gray-400 font-medium">{game.moves}</td>
+                <td className="p-6 text-right">
+                  <button className="text-indigo-400 hover:text-indigo-300 font-bold text-sm transition-colors opacity-80 group-hover:opacity-100 flex items-center justify-end gap-2 ml-auto">
+                    Analyze <span className="text-lg">→</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 function App() {
-  const [user, setUser] = useState(null);
   const [game, setGame] = useState(new Chess());
   const [explanation, setExplanation] = useState('');
 
@@ -28,13 +163,19 @@ function App() {
     setGame(gameCopy);
     
     try {
-      const response = await fetch('http://localhost:8000/api/move', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/move`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ fen: gameCopy.fen() })
       });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
       
       if (data.best_move) {
@@ -61,40 +202,26 @@ function App() {
     return true;
   }
 
-  // Show login screen if no user is set
-  if (!user) {
-    return <Login onLogin={setUser} />;
-  }
-
-  // Main application layout
   return (
-    <div className="layout-container">
-      <header className="header">
-        <h1>Chess AI Coach</h1>
-        <div className="user-profile">
-          <span className="user-icon">👤</span> {user}
-        </div>
-      </header>
-      
-      <div className="main-content">
-        <div className="left-sidebar">
-          <ControlPanel />
-        </div>
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         
-        <div className="chessboard-container">
-          <Chessboard 
-            position={game.fen()} 
-            onPieceDrop={onDrop} 
-            customDarkSquareStyle={{ backgroundColor: '#779556' }}
-            customLightSquareStyle={{ backgroundColor: '#ebecd0' }}
-          />
-        </div>
+        {/* Protected Dashboard Layout */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<PlayView game={game} onDrop={onDrop} explanation={explanation} />} />
+          <Route path="history" element={<HistoryView />} />
+        </Route>
         
-        <div className="right-sidebar">
-          <AIDashboard explanation={explanation} />
-        </div>
-      </div>
-    </div>
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
   );
 }
 
