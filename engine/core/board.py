@@ -28,8 +28,9 @@ class Board:
             if move in self._board.legal_moves:
                 self._board.push(move)
                 return True
-        except ValueError:
-            pass
+        except ValueError as e:
+            import logging
+            logging.error(f"Invalid UCI move '{uci_move}': {e}")
         return False
         
     def push(self, move: chess.Move) -> bool:

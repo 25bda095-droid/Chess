@@ -25,3 +25,20 @@ class Game(Base):
     played_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="games")
+
+from pydantic import BaseModel, Field, field_validator
+import chess
+
+class MoveRequest(BaseModel):
+    fen: str
+    difficulty: int = Field(default=50, ge=0, le=100)
+    aggression: int = Field(default=50, ge=0, le=100)
+    
+    @field_validator('fen')
+    @classmethod
+    def validate_fen(cls, v: str):
+        try:
+            chess.Board(v)
+            return v
+        except Exception:
+            raise ValueError("Invalid FEN")

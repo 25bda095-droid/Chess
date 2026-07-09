@@ -44,49 +44,59 @@ def analyze_game_mistakes(game_id: int, pgn: str = None):
     """
     Task to asynchronously analyze a finished game for mistakes/blunders.
     """
-    if not pgn:
-        return {"error": "No PGN provided"}
-        
-    game = chess.pgn.read_game(io.StringIO(pgn))
-    if game is None:
-        return {"error": "Invalid PGN"}
-        
-    engine_agent = get_agent()
-    detector = BlunderDetector()
+    try:
+        if not pgn:
+            return {"error": "No PGN provided"}
+            
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        if game is None:
+            return {"error": "Invalid PGN"}
+            
+        engine_agent = get_agent()
+        detector = BlunderDetector()
     
-    board = game.board()
-    evaluations = []
-    
-    for move in game.mainline_moves():
-        is_white_move = board.turn == chess.WHITE
-        board.push(move)
+        board = game.board()
+        evaluations = []
         
-        # Evaluate position
-        _, val = engine_agent.evaluate_board(board)
+        for move in game.mainline_moves():
+            try:
+                is_white_move = board.turn == chess.WHITE
+                board.push(move)
+                
+                # Evaluate position
+                _, val = engine_agent.evaluate_board(board)
+                
+                # val is from the perspective of the side to move.
+                stm_is_white = board.turn == chess.WHITE
+                white_val = val if stm_is_white else -val
+                
+                # Convert to centipawns (approximate heuristic scaling: 1.0 = 1000 cp)
+                centipawns = int(white_val * 1000)
+                
+                evaluations.append({
+                    "eval": centipawns,
+                    "is_white": is_white_move,
+                    "move": move.uci()
+                })
+            except Exception as e:
+                import logging
+                logging.error(f"Error parsing move {move}: {e}")
+                break
+            
+        results = detector.analyze_game(evaluations)
         
-        # val is from the perspective of the side to move.
-        stm_is_white = board.turn == chess.WHITE
-        white_val = val if stm_is_white else -val
+        blunders = sum(1 for r in results if r['classification'] == 'Blunder')
+        mistakes = sum(1 for r in results if r['classification'] == 'Mistake')
+        inaccuracies = sum(1 for r in results if r['classification'] == 'Inaccuracy')
         
-        # Convert to centipawns (approximate heuristic scaling: 1.0 = 1000 cp)
-        centipawns = int(white_val * 1000)
-        
-        evaluations.append({
-            "eval": centipawns,
-            "is_white": is_white_move,
-            "move": move.uci()
-        })
-        
-    results = detector.analyze_game(evaluations)
-    
-    blunders = sum(1 for r in results if r['classification'] == 'Blunder')
-    mistakes = sum(1 for r in results if r['classification'] == 'Mistake')
-    inaccuracies = sum(1 for r in results if r['classification'] == 'Inaccuracy')
-    
-    return {
-        "game_id": game_id,
-        "blunders": blunders,
-        "mistakes": mistakes,
-        "inaccuracies": inaccuracies,
-        "details": results
-    }
+        return {
+            "game_id": game_id,
+            "blunders": blunders,
+            "mistakes": mistakes,
+            "inaccuracies": inaccuracies,
+            "details": results
+        }
+    except Exception as e:
+        import logging
+        logging.error(f"Task analyze_game_mistakes failed: {e}", exc_info=True)
+        return {"error": str(e)}

@@ -18,8 +18,9 @@ def get_syzygy_move(fen: str) -> Optional[str]:
         if moves and isinstance(moves, list) and len(moves) > 0:
             return moves[0].get("uci")
             
-    except Exception:
+    except Exception as e:
         # Gracefully handle timeouts, network errors, invalid FEN responses, etc.
-        pass
+        import logging
+        logging.error(f"Syzygy query failed for FEN {fen}: {e}")
         
     return None

@@ -17,14 +17,16 @@ def generate_mistake_screenshot(fen: str, move_played: str, best_move: str, game
     try:
         played = chess.Move.from_uci(move_played)
         arrows.append(chess.svg.Arrow(played.from_square, played.to_square, color="red"))
-    except ValueError:
-        pass
+    except ValueError as e:
+        import logging
+        logging.error(f"Invalid move_played {move_played}: {e}")
         
     try:
         best = chess.Move.from_uci(best_move)
         arrows.append(chess.svg.Arrow(best.from_square, best.to_square, color="green"))
-    except ValueError:
-        pass
+    except ValueError as e:
+        import logging
+        logging.error(f"Invalid best_move {best_move}: {e}")
         
     svg_data = chess.svg.board(board=board, arrows=arrows)
     

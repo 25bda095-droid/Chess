@@ -1,7 +1,15 @@
 import sys
-import random
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from engine.selfplay.loop import NNUEMCTSAgent
+from engine.core.board import Board
 
 def main():
+    model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'nnue_base_model_final.pth'))
+    agent = NNUEMCTSAgent(model_path=model_path, use_tablebase=True)
+    board = Board()
+
     while True:
         try:
             line = sys.stdin.readline()
@@ -25,13 +33,29 @@ def main():
         elif cmd == "isready":
             print("readyok")
         elif cmd == "ucinewgame":
-            pass
+            board.reset()
         elif cmd == "position":
-            pass
+            if "startpos" in parts:
+                board.reset()
+                if "moves" in parts:
+                    moves_idx = parts.index("moves")
+                    for m in parts[moves_idx+1:]:
+                        board.push_uci(m)
+            elif "fen" in parts:
+                fen_idx = parts.index("fen")
+                moves_idx = parts.index("moves") if "moves" in parts else len(parts)
+                fen = " ".join(parts[fen_idx+1:moves_idx])
+                board.set_fen(fen)
+                if moves_idx < len(parts):
+                    for m in parts[moves_idx+1:]:
+                        board.push_uci(m)
         elif cmd == "go":
-            # For now, just return a hardcoded or random move
-            moves = ["e2e4", "d2d4", "g1f3", "b1c3"]
-            move = random.choice(moves)
+            policy_probs = agent.search_and_get_policy(board)
+            if policy_probs:
+                move = max(policy_probs, key=policy_probs.get)
+            else:
+                moves = list(board.generate_legal_moves())
+                move = moves[0].uci() if moves else "0000"
             print(f"bestmove {move}")
         elif cmd == "quit":
             break

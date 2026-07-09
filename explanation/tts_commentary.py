@@ -57,24 +57,6 @@ class TTSCommentator:
             except Exception as e:
                 print(f"[TTS ERROR] Failed to generate or save TTS: {e}")
         else:
-            print(f"[MOCK TTS] (gTTS not installed. Run 'pip install gTTS' to enable real TTS)")
-            print(f"[MOCK TTS] Language: {language}")
-            print(f"[MOCK TTS] Speaking Text: {text}")
-            print(f"[MOCK TTS] Audio would be saved to: {output_file}")
+            raise RuntimeError("gTTS is not installed. Please install it using 'pip install gTTS'.")
 
-# Example usage:
-if __name__ == "__main__":
-    commentator = TTSCommentator()
-    
-    # Mock LLM generation
-    mock_move = "e4"
-    mock_fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
-    mock_context = "Opening move."
-    
-    print("--- Prompt Generated ---")
-    prompt = commentator.generate_prompt(mock_move, mock_fen, mock_context)
-    print(prompt)
-    
-    print("\n--- Running TTS ---")
-    mock_explanation = "ई फोर (e4) एक बहुत ही मजबूत और लोकप्रिय ओपनिंग चाल है। यह केंद्र पर नियंत्रण स्थापित करता है।"
-    commentator.speak(mock_explanation, play=False)
+

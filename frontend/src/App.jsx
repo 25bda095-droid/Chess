@@ -1,16 +1,37 @@
-import { useState } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet } from 'react-router-dom';
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: '2rem', color: 'red' }}><h2>Something went wrong in the application.</h2></div>;
+    }
+    return this.props.children;
+  }
+}
+
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import AIDashboard from './components/AIDashboard';
 import ControlPanel from './components/ControlPanel';
+import PuzzleRush from './components/PuzzleRush';
 import './App.css';
 
-// Mock ProtectedRoute
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = true; // Temporary bypass since Auth components aren't wired up to global state yet
+  const token = localStorage.getItem('access_token');
+  const isAuthenticated = !!token;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -41,11 +62,11 @@ const DashboardLayout = () => {
 };
 
 // The Play View (Chess Game)
-const PlayView = ({ game, onDrop, explanation }) => {
+const PlayView = ({ game, onDrop, explanation, difficulty, setDifficulty, aggression, setAggression, lastMove, onStartPuzzleRush }) => {
   return (
     <div className="main-content">
       <div className="left-sidebar">
-        <ControlPanel />
+        <ControlPanel difficulty={difficulty} setDifficulty={setDifficulty} aggression={aggression} setAggression={setAggression} onStartPuzzleRush={onStartPuzzleRush} />
       </div>
       
       <div className="chessboard-container">
@@ -58,7 +79,7 @@ const PlayView = ({ game, onDrop, explanation }) => {
       </div>
       
       <div className="right-sidebar">
-        <AIDashboard explanation={explanation} />
+        <AIDashboard explanation={explanation} currentFen={game.fen()} lastMove={lastMove} />
       </div>
     </div>
   );
@@ -66,12 +87,26 @@ const PlayView = ({ game, onDrop, explanation }) => {
 
 // Premium History View Component
 const HistoryView = () => {
-  const games = [
-    { id: 1, date: '2023-10-01', opponent: 'Stockfish Level 8', result: 'Win', accuracy: '92%', moves: 45 },
-    { id: 2, date: '2023-09-28', opponent: 'Hikaru (Bot)', result: 'Loss', accuracy: '78%', moves: 32 },
-    { id: 3, date: '2023-09-25', opponent: 'Magnus (Bot)', result: 'Draw', accuracy: '85%', moves: 60 },
-    { id: 4, date: '2023-09-22', opponent: 'Beth Harmon (Bot)', result: 'Win', accuracy: '89%', moves: 24 },
-  ];
+  const [games, setGames] = useState([]);
+  
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const token = localStorage.getItem('access_token');
+        const res = await fetch(`${apiUrl}/history`, {
+           headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+           const data = await res.json();
+           setGames(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch history", err);
+      }
+    };
+    fetchGames();
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto w-full pt-8 pb-12">
@@ -88,15 +123,15 @@ const HistoryView = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
           <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Total Games</h3>
-          <p className="text-4xl font-black text-white">124</p>
+          <p className="text-4xl font-black text-white">{games.length}</p>
         </div>
         <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
           <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Win Rate</h3>
-          <p className="text-4xl font-black text-emerald-400">62.5%</p>
+          <p className="text-4xl font-black text-emerald-400">{games.length > 0 ? Math.round((games.filter(g => g.result === 'win').length / games.length) * 100) : 0}%</p>
         </div>
         <div className="bg-gray-800/80 p-6 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm">
           <h3 className="text-gray-400 text-sm font-bold uppercase tracking-wider mb-2">Avg Accuracy</h3>
-          <p className="text-4xl font-black text-blue-400">85.2%</p>
+          <p className="text-4xl font-black text-blue-400">-</p>
         </div>
       </div>
 
@@ -115,19 +150,19 @@ const HistoryView = () => {
           <tbody className="divide-y divide-gray-700/50">
             {games.map((game) => (
               <tr key={game.id} className="hover:bg-gray-700/30 transition-colors group">
-                <td className="p-6 text-gray-300 font-medium">{game.date}</td>
-                <td className="p-6 text-white font-semibold text-lg">{game.opponent}</td>
+                <td className="p-6 text-gray-300 font-medium">{new Date(game.played_at).toLocaleDateString()}</td>
+                <td className="p-6 text-white font-semibold text-lg">{game.opponent_name || 'AI'}</td>
                 <td className="p-6">
                   <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
-                    game.result === 'Win' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                    game.result === 'Loss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                    game.result?.toLowerCase() === 'win' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                    game.result?.toLowerCase() === 'loss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
                     'bg-gray-500/20 text-gray-400 border border-gray-500/30'
                   }`}>
                     {game.result}
                   </span>
                 </td>
-                <td className="p-6 text-blue-400 font-bold text-lg">{game.accuracy}</td>
-                <td className="p-6 text-gray-400 font-medium">{game.moves}</td>
+                <td className="p-6 text-blue-400 font-bold text-lg">-</td>
+                <td className="p-6 text-gray-400 font-medium">-</td>
                 <td className="p-6 text-right">
                   <button className="text-indigo-400 hover:text-indigo-300 font-bold text-sm transition-colors opacity-80 group-hover:opacity-100 flex items-center justify-end gap-2 ml-auto">
                     Analyze <span className="text-lg">→</span>
@@ -145,6 +180,10 @@ const HistoryView = () => {
 function App() {
   const [game, setGame] = useState(new Chess());
   const [explanation, setExplanation] = useState('');
+  const [difficulty, setDifficulty] = useState(50); // Added difficulty state
+  const [aggression, setAggression] = useState(50); // Added aggression state
+  const [lastMove, setLastMove] = useState(''); // Track last move for commentary
+  const [isPuzzleRushActive, setIsPuzzleRushActive] = useState(false);
 
   async function onDrop(sourceSquare, targetSquare) {
     const gameCopy = new Chess(game.fen());
@@ -155,6 +194,9 @@ function App() {
         to: targetSquare,
         promotion: 'q',
       });
+      if (move) {
+        setLastMove(move.lan || sourceSquare + targetSquare);
+      }
     } catch (e) {
       return false;
     }
@@ -169,7 +211,11 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fen: gameCopy.fen() })
+        body: JSON.stringify({ 
+          fen: gameCopy.fen(),
+          difficulty: difficulty,
+          aggression: aggression
+        })
       });
 
       if (!response.ok) {
@@ -190,6 +236,7 @@ function App() {
           if (!result) {
             aiGameCopy.move(data.best_move);
           }
+          setLastMove(data.best_move);
         } catch (e) {
           console.error("Move error", e);
         }
@@ -203,25 +250,31 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        
-        {/* Protected Dashboard Layout */}
-        <Route path="/" element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<PlayView game={game} onDrop={onDrop} explanation={explanation} />} />
-          <Route path="history" element={<HistoryView />} />
-        </Route>
-        
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* Protected Dashboard Layout */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={
+              isPuzzleRushActive ? 
+              <PuzzleRush onExit={() => setIsPuzzleRushActive(false)} /> :
+              <PlayView game={game} onDrop={onDrop} explanation={explanation} difficulty={difficulty} setDifficulty={setDifficulty} aggression={aggression} setAggression={setAggression} lastMove={lastMove} onStartPuzzleRush={() => setIsPuzzleRushActive(true)} />
+            } />
+            <Route path="history" element={<HistoryView />} />
+          </Route>
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

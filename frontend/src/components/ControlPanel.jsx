@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import './Dashboard.css';
 
-export default function ControlPanel() {
-  const [difficulty, setDifficulty] = useState(10);
-  const [aggression, setAggression] = useState(5);
+export default function ControlPanel({ difficulty, setDifficulty, aggression, setAggression, onStartPuzzleRush }) {
 
   const getDifficultyLabel = (val) => {
-    if (val < 5) return "Easy 🟢";
-    if (val < 9) return "Medium 🟡";
-    if (val < 13) return "Hard 🟠";
-    if (val < 17) return "Expert 🔴";
+    if (val < 20) return "Easy 🟢";
+    if (val < 40) return "Medium 🟡";
+    if (val < 60) return "Hard 🟠";
+    if (val < 80) return "Expert 🔴";
     return "Grandmaster 🟣";
   };
 
   const getAggressionLabel = (val) => {
-    if (val < 4) return "Passive 🛡️";
-    if (val < 8) return "Balanced ⚖️";
-    return "Aggressive ⚔️";
+    if (val < 20) return "Defensive 🛡️";
+    if (val < 40) return "Solid 🧱";
+    if (val < 60) return "Balanced ⚖️";
+    if (val < 80) return "Aggressive 🗡️";
+    return "Berserk 🩸";
   };
 
   return (
@@ -30,7 +30,7 @@ export default function ControlPanel() {
         </div>
         <input 
           type="range" 
-          min="1" max="20" 
+          min="0" max="100" 
           value={difficulty} 
           onChange={(e) => setDifficulty(parseInt(e.target.value))}
         />
@@ -50,17 +50,20 @@ export default function ControlPanel() {
         </div>
         <input 
           type="range" 
-          min="1" max="10" 
+          min="0" max="100" 
           value={aggression}
           onChange={(e) => setAggression(parseInt(e.target.value))}
         />
       </div>
-      
-      <div className="divider"></div>
-      
-      <h3>🧩 Training</h3>
-      <p className="training-text">Based on your mistake history</p>
-      <button className="puzzle-rush-btn">⚡ Start Puzzle Rush</button>
+
+      <div style={{ marginTop: '2rem' }}>
+        <button 
+          onClick={onStartPuzzleRush}
+          style={{ padding: '0.75rem', width: '100%', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
+        >
+          ⚡ Start Puzzle Rush
+        </button>
+      </div>
     </div>
   );
 }

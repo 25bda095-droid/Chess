@@ -1,4 +1,5 @@
 import os
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from .database import get_db
 from .models import User
@@ -28,9 +29,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # --- Schemas ---
 
 class UserCreate(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=50)
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
 
 class UserResponse(BaseModel):
     id: int
@@ -96,7 +97,7 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username or email already registered")
     
     # Create new user
-    hashed_password = get_password_hash(user.password)
+    hashed_password = await asyncio.to_thread(get_password_hash, user.password)
     new_user = User(
         username=user.username,
         email=user.email,
@@ -112,7 +113,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     result = await db.execute(select(User).where(User.username == form_data.username))
     user = result.scalars().first()
     
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user or not (await asyncio.to_thread(verify_password, form_data.password, user.password_hash)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

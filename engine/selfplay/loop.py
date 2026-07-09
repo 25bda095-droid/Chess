@@ -77,7 +77,7 @@ class SelfPlayLoop:
     def generate_data(self, agent, num_games: int) -> List[Tuple[str, dict, float]]:
         from tqdm import tqdm
         dataset = []
-        stats = {'White Wins': 0, 'Black Wins': 0, 'Draws': 0, 'Mistakes': 0}
+        stats = {'White Wins': 0, 'Black Wins': 0, 'Draws': 0}
         
         pbar = tqdm(range(num_games), desc="Self-Play RL")
         for i in pbar:
@@ -91,9 +91,7 @@ class SelfPlayLoop:
             else:
                 stats['Draws'] += 1
                 
-            # Track mistakes (mock logic: arbitrary blunders during MCTS)
-            stats['Mistakes'] += len(game_data) // 15
-            
+
             pbar.set_postfix(stats)
             
         print("\n--- Self-Play RL Session Complete ---")

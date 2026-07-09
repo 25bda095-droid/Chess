@@ -5,18 +5,16 @@ import json
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from mistake_tracker import MistakeTracker
 
-def run_analysis():
+def run_analysis(mistakes_list=None):
     tracker = MistakeTracker(recurring_threshold=3)
     
-    # Simulate user game mistakes across recent games
-    mock_mistakes = [
-        "hanging_piece", "missed_mate", "blunder", 
-        "hanging_piece", "forked", "hanging_piece",
-        "missed_mate", "pinned_piece", "hanging_piece",
-        "missed_mate", "blunder"
-    ]
+    if mistakes_list is None:
+        if len(sys.argv) > 1:
+            mistakes_list = sys.argv[1:]
+        else:
+            mistakes_list = []
     
-    for mistake in mock_mistakes:
+    for mistake in mistakes_list:
         tracker.record_mistake(mistake)
         
     profile = tracker.get_profile()

@@ -59,6 +59,8 @@ class LLMExplainer:
                 logger.info(f"LLM explanation attempt {attempt}/{self.max_retries} using {self.model_name}")
                 # Use explicit os.getenv to satisfy auditor, litellm defaults to these anyway
                 api_key = os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise ValueError("Neither GEMINI_API_KEY nor OPENAI_API_KEY is set in the environment.")
                 
                 response = await litellm.acompletion(
                     model=self.model_name,

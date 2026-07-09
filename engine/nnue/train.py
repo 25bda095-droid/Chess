@@ -61,21 +61,6 @@ def train_model(model, dataloader, epochs=5, lr=1e-3, device='cpu'):
     torch.save(model.state_dict(), "nnue_base_model_final.pth")
     return model
 
-def create_dummy_dataloader(num_samples=1000, input_size=HalfKPFeatures.NUM_FEATURES, batch_size=32):
-    """
-    Creates a dummy dataloader for testing the training loop.
-    We use random floats here for mock purposes.
-    """
-    print(f"Generating {num_samples} dummy samples with input size {input_size}...")
-    feat_stm = torch.rand(num_samples, input_size)
-    feat_nstm = torch.rand(num_samples, input_size)
-    
-    # Dummy target evaluations (e.g., normally distributed around 0)
-    target = torch.randn(num_samples, 1) * 2.0 
-    
-    dataset = TensorDataset(feat_stm, feat_nstm, target)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    return dataloader
 
 if __name__ == "__main__":
     import os
@@ -100,8 +85,7 @@ if __name__ == "__main__":
         # Train on 200,000 games for a lightning fast 50-minute Base Training!
         dataloader = create_pgn_dataloader(pgn_path, batch_size=BATCH_SIZE, max_games=200000)
     else:
-        print("PGN file not found. Falling back to dummy dataloader...")
-        dataloader = create_dummy_dataloader(num_samples=1000, input_size=INPUT_SIZE, batch_size=BATCH_SIZE)
+        raise FileNotFoundError(f"PGN file not found at {pgn_path}. Cannot train without data.")
     
     # 3. Train the model
     train_model(model, dataloader, epochs=EPOCHS, lr=1e-3, device=device)
